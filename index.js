@@ -1,16 +1,3 @@
-// Copyright 2017, Google, Inc.
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 'use strict';
 var rp = require('request-promise');
 const Entities = require('html-entities').AllHtmlEntities;
@@ -48,36 +35,98 @@ exports.QnAMakerWebhook = function QnAMakerWebhook(req, res) {
         callQnAMakerApi(query)
         .then((output) => {
           // Return the results of the weather API to Dialogflow
-          sendResponse(output);
+          if (requestSource === googleAssistantRequest) {
+            sendGoogleResponse(output);
+          } else {
+            sendResponse(output);
+          }
         })
         .catch((error) => {
           // If there is an error let the user know
-          sendResponse(error);
+          if (requestSource === googleAssistantRequest) {
+            sendGoogleResponse(error);
+          } else {
+            sendResponse(error);
+          }
         });
   },
   // The default fallback intent has been matched, try to recover (https://dialogflow.com/docs/intents#fallback_intents)
-  'faq': () => {
+  'Password-Reset': () => {
     // Use the Actions on Google lib to respond to Google requests; for other requests use JSON
-    sendResponse('faq'); // Send simple response to user
+    if (requestSource === googleAssistantRequest) {
+      sendGoogleResponse('Listo! Te llegará un SMS con la nueva clave al celular');
+    } else {
+      sendResponse('Listo! Te llegará un SMS con la nueva clave al celular'); // Send simple response to user
+    }
+  },
+  'Guest-Wifi': () => {
+    // Use the Actions on Google lib to respond to Google requests; for other requests use JSON
+    let output = 'Se creó la cuenta. Ingresar con usuario "visita0' + Math.floor(Math.random() * 1000)
+    +'" y clave "Entel.' + Math.floor(Math.random() * 1000) + '". Válida hasta el 30 de Enero ';
+    if (requestSource === googleAssistantRequest) {
+      sendGoogleResponse(output);
+    } else {
+      sendResponse(output);
+    }
+  },
+  'Ticket-Status': () => {
+    let ticket = '';
+    if (body.result.parameters['ticket']) {
+      ticket = body.result.parameters['ticket'];
+      console.log('ticket: ' + ticket);
+    } else {
+      console.log('ERROR: No hay ticket');
+    }
+    let output = `El estado del ticket ${ticket} es completado con el siguiente comentario:\r\n"Trabajo realizado en terreno el 2 de diciembre."`;
+    if (requestSource === googleAssistantRequest) {
+      sendGoogleResponse(output);
+    } else {
+      sendResponse(output);
+    }
+    
   },
   // Default handler for unknown or undefined actions
   'default': () => {
-    let responseToUser = {
-      //fulfillmentMessages: richResponsesV2, // Optional, uncomment to enable
-      //outputContexts: [{ 'name': `${session}/contexts/weather`, 'lifespanCount': 2, 'parameters': {'city': 'Rome'} }], // Optional, uncomment to enable
-      fulfillmentText: 'This is from Dialogflow\'s Cloud Functions for Firebase editor! :-)' // displayed response
-    };
-    sendResponse(responseToUser);
+    let responseToUser = 'This is from Dialogflow\'s Cloud Functions for Firebase editor! :-)' // displayed response
+    
+    if (requestSource === googleAssistantRequest) {
+      sendGoogleResponse(responseToUser);
+    } else {
+      sendResponse(responseToUser);
+    }
   }
 };
 // If undefined or unknown action use the default handler
 if (!actionHandlers[action]) {
   action = 'default';
 }
-console.log("About to execute action")
+console.log("About to execute action: " + action)
 // Run the proper handler function to handle the request from Dialogflow
 actionHandlers[action]();
 
+// Function to send correctly formatted Google Assistant responses to Dialogflow which are then sent to the user
+function sendGoogleResponse (responseToUser) {
+  if (typeof responseToUser === 'string') {
+    app.ask(responseToUser); // Google Assistant response
+  } else {
+    // If speech or displayText is defined use it to respond
+    let googleResponse = app.buildRichResponse().addSimpleResponse({
+      speech: responseToUser.speech || responseToUser.displayText,
+      displayText: responseToUser.displayText || responseToUser.speech
+    });
+    // Optional: Overwrite previous response with rich response
+    if (responseToUser.googleRichResponse) {
+      googleResponse = responseToUser.googleRichResponse;
+    }
+    // Optional: add contexts (https://dialogflow.com/docs/contexts)
+    if (responseToUser.googleOutputContexts) {
+      app.setContext(...responseToUser.googleOutputContexts);
+    }
+
+    console.log('Response to Dialogflow (AoG): ' + JSON.stringify(googleResponse));
+    app.ask(googleResponse); // Send response to Dialogflow and Google Assistant
+  }
+}
 
 function sendResponse (responseToUser) {
   // if the response is a string send it as a response to the user
@@ -87,7 +136,7 @@ function sendResponse (responseToUser) {
     responseJson.displayText = responseToUser,
     //responseJson.data = {},
     //responseJson.contextOut = [],
-    responseJson.source = "QnA Maker"
+    //responseJson.source = "QnA Maker"
 
     res.json(responseJson); // Send response to Dialogflow
   } else {
@@ -137,8 +186,12 @@ function callQnAMakerApi (query) {
       //let response = JSON.parse(body);
       let answer = entities.decode(parsedBody.answers[0].answer);
       let score = parsedBody.answers[0].score;
+
       // Create response
-      let output = `Creo que la respuesta es "${answer}".`;
+      let output = {};
+      if(score > 0.6 || answer != "No good match found in the KB"){
+        output = `Creo que esta es la respuesta que buscas:  \r\n "${answer}".`;
+      }
       // Resolve the promise with the output text
       console.log(output);
       resolve(output);
