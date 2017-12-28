@@ -1,0 +1,20 @@
+{ "id": "c7a0d189-0229-41f3-a1a7-7a63412a94c7",
+  "timestamp": "2017-12-27T22:29:39.467Z",
+  "lang": "es",
+  "result": 
+   { "source": "agent",
+     "resolvedQuery": "tengo una duda",
+     "speech": "",
+     "action": "QnA-Maker",
+     "actionIncomplete": false,
+     "parameters": {"query": "¿Que es portabilidad?"},
+     "contexts": [ "asd" ],
+     "metadata": 
+      { "intentId": "d13ab798-78cb-457b-9e54-6b5566414c0b",
+        "webhookUsed": "true",
+        "webhookForSlotFillingUsed": "false",
+        "intentName": "faq" },
+     "fulfillment": { "speech": "", "messages": "asdqa" },
+     "score": 1 },
+  "status": { "code": 200, "errorType": "success", "webhookTimedOut": false },
+  "sessionId": "21e9cfa4-52cf-4018-bcb1-a0767e19d31f" }
